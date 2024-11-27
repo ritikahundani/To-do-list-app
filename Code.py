@@ -1,72 +1,78 @@
-from  tkinter import * 
-import tkinter.messagebox
+import tkinter as tk
+import sqlite3
 
-#creating the initial window
-window=Tk()
-#giving a title
-window.title("DataFlair Python To-Do List APP")
+# Connect to database or create it
+conn = sqlite3.connect("tasks.db")
+cursor = conn.cursor()
 
+# Create table if it doesn't exist
+cursor.execute("CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY, task TEXT, completed BOOLEAN)")
 
-#Frame widget to hold the listbox and the scrollbar
-frame_task=Frame(window)
-frame_task.pack()
-def entertask():
-    #A new window to pop up to take input
-    input_text=""
-    def add():
-        input_text=entry_task.get(1.0, "end-1c")
-        if input_text=="":
-            tkinter.messagebox.showwarning(title="Warning!",message="Please Enter some Text")
-        else:
-            listbox_task.insert(END,input_text)
-            #close the root1 window
-            root1.destroy()
-    root1=Tk()
-    root1.title("Add task")
-    entry_task=Text(root1,width=40,height=4)
-    entry_task.pack()
-    button_temp=Button(root1,text="Add task",command=add)
-    button_temp.pack()
-    root1.mainloop()
-    
+# Add a task to the database
+def add_task():
+    task = entry.get()
+    if task:
+        cursor.execute("INSERT INTO tasks (task, completed) VALUES (?, ?)", (task, False))
+        conn.commit()
+        update_listbox()
+        entry.delete(0, tk.END)
 
-#function to facilitate the delete task from the Listbox
-def deletetask():
-    #selects the selected item and then deletes it 
-    selected=listbox_task.curselection()
-    listbox_task.delete(selected[0])
-#Executes this to mark completed 
+# Mark selected task as completed
+def mark_as_completed():
+    selected_task_index = listbox.curselection()
+    if selected_task_index:
+        task_id = listbox.get(selected_task_index).split(" | ")[0]  # Extract task ID
+        cursor.execute("UPDATE tasks SET completed = ? WHERE id = ?", (True, task_id))
+        conn.commit()
+        update_listbox()
 
-def markcompleted():
-    marked=listbox_task.curselection()
-    temp=marked[0]
-    #store the text of selected item in a string
-    temp_marked=listbox_task.get(marked)
-    #update it 
-    temp_marked=temp_marked+" ✔"
-    #delete it then insert it 
-    listbox_task.delete(temp)
-    listbox_task.insert(temp,temp_marked)
-#to hold items in a listbox
-listbox_task=Listbox(frame_task,bg="black",fg="white",height=15,width=50,font = "Helvetica")  
-listbox_task.pack(side=tkinter.LEFT)
+# Delete a task from the database
+def delete_task():
+    selected_task_index = listbox.curselection()
+    if selected_task_index:
+        task_id = listbox.get(selected_task_index).split(" | ")[0]  # Extract task ID
+        cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        conn.commit()
+        update_listbox()
 
-#Scrolldown in case the total list exceeds the size of the given window 
-scrollbar_task=Scrollbar(frame_task)
-scrollbar_task.pack(side=tkinter.RIGHT,fill=tkinter.Y)
-listbox_task.config(yscrollcommand=scrollbar_task.set)
-scrollbar_task.config(command=listbox_task.yview)
+# Update the listbox display
+def update_listbox():
+    listbox.delete(0, tk.END)
+    cursor.execute("SELECT id, task, completed FROM tasks")
+    for task in cursor.fetchall():
+        display_text = f"{task[0]} | {task[1]}"  # Display task with its ID
+        if task[2]:  # Check if the task is completed
+            display_text += " ✓"  # Add checkmark
+        listbox.insert(tk.END, display_text)
 
+# Initialize the app
+root = tk.Tk()
+root.title("To-Do List")
 
-#Button widget 
-entry_button=Button(window,text="Add task",width=50,command=entertask)
-entry_button.pack(pady=3)
+# Entry for new tasks
+entry = tk.Entry(root, width=40)
+entry.pack(pady=10)
 
-delete_button=Button(window,text="Delete selected task",width=50,command=deletetask)
-delete_button.pack(pady=3)
+# Add Task Button
+add_button = tk.Button(root, text="Add Task", command=add_task)
+add_button.pack(pady=5)
 
-mark_button=Button(window,text="Mark as completed ",width=50,command=markcompleted)
-mark_button.pack(pady=3)
+# Task Listbox
+listbox = tk.Listbox(root, width=50, height=15)
+listbox.pack(pady=10)
 
+# Populate listbox with tasks from the database
+update_listbox()
 
-window.mainloop()
+# Mark as Completed Button
+complete_button = tk.Button(root, text="Mark as Completed", command=mark_as_completed)
+complete_button.pack(pady=5)
+
+# Delete Task Button
+delete_button = tk.Button(root, text="Delete Task", command=delete_task)
+delete_button.pack(pady=5)
+
+root.mainloop()
+
+# Close database connection when the app closes
+conn.close()
